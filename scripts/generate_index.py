@@ -114,7 +114,7 @@ def render_page(games: list[dict[str, str | None]]) -> str:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
-  <title>Brood Rooster Games</title>
+  <title>Broodrooster Games</title>
   <style>
     :root {{
       color-scheme: dark;
@@ -271,7 +271,7 @@ def render_page(games: list[dict[str, str | None]]) -> str:
   <main>
     <header>
       <div>
-        <p class="eyebrow">Brood Rooster</p>
+        <p class="eyebrow">Broodrooster</p>
         <h1>Games</h1>
       </div>
       <p class="game-count">{len(games)} {game_word}</p>
