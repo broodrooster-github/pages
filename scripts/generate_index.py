@@ -5,8 +5,11 @@ from __future__ import annotations
 
 import html
 import re
+import subprocess
+from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
+from typing import TypedDict
 from urllib.parse import quote
 
 
@@ -17,6 +20,13 @@ ICON_CANDIDATES = (
     "index.apple-touch-icon.png",
     "index.png",
 )
+
+
+class Game(TypedDict):
+    title: str
+    directory: str
+    icon: str | None
+    updated: datetime | None
 
 
 class TitleParser(HTMLParser):
@@ -50,8 +60,54 @@ def read_title(index_file: Path) -> str:
     return parser.title or index_file.parent.name
 
 
-def find_games() -> list[dict[str, str | None]]:
-    games: list[dict[str, str | None]] = []
+def git_last_updated(directory: Path) -> datetime | None:
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "log",
+                "-1",
+                "--format=%cI",
+                "--",
+                str(directory.relative_to(ROOT)),
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return None
+
+    iso = result.stdout.strip()
+    if not iso:
+        return None
+
+    return datetime.fromisoformat(iso)
+
+
+def filesystem_last_updated(directory: Path) -> datetime | None:
+    mtimes: list[float] = []
+    for path in directory.rglob("*"):
+        if path.is_file():
+            mtimes.append(path.stat().st_mtime)
+    if not mtimes:
+        return None
+    return datetime.fromtimestamp(max(mtimes), tz=timezone.utc)
+
+
+def last_updated(directory: Path) -> datetime | None:
+    return git_last_updated(directory) or filesystem_last_updated(directory)
+
+
+def format_updated(updated: datetime) -> tuple[str, str]:
+    aware = updated if updated.tzinfo else updated.replace(tzinfo=timezone.utc)
+    label = f"Updated {aware.day} {aware.strftime('%b %Y')}"
+    return aware.isoformat(), label
+
+
+def find_games() -> list[Game]:
+    games: list[Game] = []
 
     for directory in ROOT.iterdir():
         if not directory.is_dir() or directory.name.startswith((".", "_")):
@@ -70,20 +126,26 @@ def find_games() -> list[dict[str, str | None]]:
                 "title": read_title(index_file),
                 "directory": directory.name,
                 "icon": icon,
+                "updated": last_updated(directory),
             }
         )
 
-    return sorted(
-        games,
-        key=lambda game: re.sub(r"[^a-z0-9]+", "", str(game["title"]).casefold()),
-    )
+    return sorted(games, key=_game_sort_key)
 
 
-def render_card(game: dict[str, str | None]) -> str:
-    title = html.escape(str(game["title"]))
-    directory = str(game["directory"])
+def _game_sort_key(game: Game) -> tuple[float, str]:
+    updated = game["updated"]
+    recency = -updated.timestamp() if updated is not None else float("inf")
+    title_key = re.sub(r"[^a-z0-9]+", "", game["title"].casefold())
+    return (recency, title_key)
+
+
+def render_card(game: Game) -> str:
+    title = html.escape(game["title"])
+    directory = game["directory"]
     encoded_directory = quote(directory)
     icon = game["icon"]
+    updated = game["updated"]
 
     if icon:
         artwork = (
@@ -93,17 +155,27 @@ def render_card(game: dict[str, str | None]) -> str:
     else:
         artwork = '<span class="card-placeholder" aria-hidden="true">BR</span>'
 
+    if updated is not None:
+        iso, label = format_updated(updated)
+        updated_html = (
+            f'<time class="game-updated" datetime="{html.escape(iso)}">'
+            f"{html.escape(label)}</time>"
+        )
+    else:
+        updated_html = ""
+
     return f"""\
       <a class="game-card" href="./{encoded_directory}/">
         <span class="game-artwork">{artwork}</span>
         <span class="game-info">
           <strong>{title}</strong>
+          {updated_html}
           <span>Play in browser <span aria-hidden="true">→</span></span>
         </span>
       </a>"""
 
 
-def render_page(games: list[dict[str, str | None]]) -> str:
+def render_page(games: list[Game]) -> str:
     cards = "\n".join(render_card(game) for game in games)
     game_word = "game" if len(games) == 1 else "games"
 
@@ -241,6 +313,11 @@ def render_page(games: list[dict[str, str | None]]) -> str:
       font-size: 1.05rem;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }}
+
+    .game-updated {{
+      color: var(--muted);
+      font-size: 0.8rem;
     }}
 
     .game-info > span {{
