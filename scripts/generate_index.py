@@ -29,6 +29,69 @@ class Game(TypedDict):
     updated: datetime | None
 
 
+RELATIVE_TIME_SCRIPT = """
+<script>
+(function () {
+  function plural(count, unit) {
+    return count + " " + unit + (count === 1 ? "" : "s");
+  }
+
+  function formatAgo(iso) {
+    var from = new Date(iso);
+    if (Number.isNaN(from.getTime())) return "";
+
+    var to = new Date();
+    if (from > to) return "Updated just now";
+
+    var years = to.getFullYear() - from.getFullYear();
+    var months = to.getMonth() - from.getMonth();
+    var days = to.getDate() - from.getDate();
+    var hours = to.getHours() - from.getHours();
+    var minutes = to.getMinutes() - from.getMinutes();
+
+    if (minutes < 0) {
+      minutes += 60;
+      hours -= 1;
+    }
+    if (hours < 0) {
+      hours += 24;
+      days -= 1;
+    }
+    if (days < 0) {
+      days += new Date(to.getFullYear(), to.getMonth(), 0).getDate();
+      months -= 1;
+    }
+    if (months < 0) {
+      months += 12;
+      years -= 1;
+    }
+
+    var parts = [];
+    if (years) parts.push(plural(years, "year"));
+    if (months) parts.push(plural(months, "month"));
+    if (days) parts.push(plural(days, "day"));
+    if (hours) parts.push(plural(hours, "hour"));
+    if (minutes) parts.push(plural(minutes, "minute"));
+    if (!parts.length) return "Updated just now";
+    return "Updated " + parts.join(", ") + " ago";
+  }
+
+  function refresh() {
+    document.querySelectorAll("time.game-updated[datetime]").forEach(function (el) {
+      var from = new Date(el.dateTime);
+      var label = formatAgo(el.dateTime);
+      if (label) el.textContent = label;
+      if (!Number.isNaN(from.getTime())) el.title = from.toLocaleString();
+    });
+  }
+
+  refresh();
+  setInterval(refresh, 60000);
+})();
+</script>
+"""
+
+
 class TitleParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__()
@@ -100,10 +163,9 @@ def last_updated(directory: Path) -> datetime | None:
     return git_last_updated(directory) or filesystem_last_updated(directory)
 
 
-def format_updated(updated: datetime) -> tuple[str, str]:
+def format_updated(updated: datetime) -> str:
     aware = updated if updated.tzinfo else updated.replace(tzinfo=timezone.utc)
-    label = f"Updated {aware.day} {aware.strftime('%b %Y')}"
-    return aware.isoformat(), label
+    return aware.isoformat()
 
 
 def find_games() -> list[Game]:
@@ -156,11 +218,8 @@ def render_card(game: Game) -> str:
         artwork = '<span class="card-placeholder" aria-hidden="true">BR</span>'
 
     if updated is not None:
-        iso, label = format_updated(updated)
-        updated_html = (
-            f'<time class="game-updated" datetime="{html.escape(iso)}">'
-            f"{html.escape(label)}</time>"
-        )
+        iso = html.escape(format_updated(updated))
+        updated_html = f'<time class="game-updated" datetime="{iso}">Updated</time>'
     else:
         updated_html = ""
 
@@ -318,6 +377,7 @@ def render_page(games: list[Game]) -> str:
     .game-updated {{
       color: var(--muted);
       font-size: 0.8rem;
+      line-height: 1.35;
     }}
 
     .game-info > span {{
@@ -357,6 +417,7 @@ def render_page(games: list[Game]) -> str:
 {cards}
     </section>
   </main>
+{RELATIVE_TIME_SCRIPT}
 </body>
 </html>
 """
