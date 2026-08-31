@@ -136,6 +136,7 @@
     .game-updated {
       color: var(--muted);
       font-size: 0.8rem;
+      line-height: 1.35;
     }
 
     .game-info > span {
@@ -176,7 +177,7 @@
         <span class="game-artwork"><img src="./loopomotive/index.icon.png" alt="" loading="lazy"></span>
         <span class="game-info">
           <strong>Loopomotive</strong>
-          <time class="game-updated" datetime="2026-08-31T14:43:58+00:00">Updated 31 Aug 2026</time>
+          <time class="game-updated" datetime="2026-08-31T14:43:58+00:00">Updated</time>
           <span>Play in browser <span aria-hidden="true">→</span></span>
         </span>
       </a>
@@ -184,7 +185,7 @@
         <span class="game-artwork"><img src="./athero/index.icon.png" alt="" loading="lazy"></span>
         <span class="game-info">
           <strong>Athero</strong>
-          <time class="game-updated" datetime="2026-08-31T10:14:47+00:00">Updated 31 Aug 2026</time>
+          <time class="game-updated" datetime="2026-08-31T10:14:47+00:00">Updated</time>
           <span>Play in browser <span aria-hidden="true">→</span></span>
         </span>
       </a>
@@ -192,7 +193,7 @@
         <span class="game-artwork"><img src="./heart-of-the-storm/index.icon.png" alt="" loading="lazy"></span>
         <span class="game-info">
           <strong>Heart of the Storm</strong>
-          <time class="game-updated" datetime="2026-08-23T23:10:12+00:00">Updated 23 Aug 2026</time>
+          <time class="game-updated" datetime="2026-08-23T23:10:12+00:00">Updated</time>
           <span>Play in browser <span aria-hidden="true">→</span></span>
         </span>
       </a>
@@ -200,11 +201,72 @@
         <span class="game-artwork"><img src="./clockin-it/index.icon.png" alt="" loading="lazy"></span>
         <span class="game-info">
           <strong>Clockin&#x27; It</strong>
-          <time class="game-updated" datetime="2026-08-23T21:54:47+00:00">Updated 23 Aug 2026</time>
+          <time class="game-updated" datetime="2026-08-23T21:54:47+00:00">Updated</time>
           <span>Play in browser <span aria-hidden="true">→</span></span>
         </span>
       </a>
     </section>
   </main>
+
+<script>
+(function () {
+  function plural(count, unit) {
+    return count + " " + unit + (count === 1 ? "" : "s");
+  }
+
+  function formatAgo(iso) {
+    var from = new Date(iso);
+    if (Number.isNaN(from.getTime())) return "";
+
+    var to = new Date();
+    if (from > to) return "Updated just now";
+
+    var years = to.getFullYear() - from.getFullYear();
+    var months = to.getMonth() - from.getMonth();
+    var days = to.getDate() - from.getDate();
+    var hours = to.getHours() - from.getHours();
+    var minutes = to.getMinutes() - from.getMinutes();
+
+    if (minutes < 0) {
+      minutes += 60;
+      hours -= 1;
+    }
+    if (hours < 0) {
+      hours += 24;
+      days -= 1;
+    }
+    if (days < 0) {
+      days += new Date(to.getFullYear(), to.getMonth(), 0).getDate();
+      months -= 1;
+    }
+    if (months < 0) {
+      months += 12;
+      years -= 1;
+    }
+
+    var parts = [];
+    if (years) parts.push(plural(years, "year"));
+    if (months) parts.push(plural(months, "month"));
+    if (days) parts.push(plural(days, "day"));
+    if (hours) parts.push(plural(hours, "hour"));
+    if (minutes) parts.push(plural(minutes, "minute"));
+    if (!parts.length) return "Updated just now";
+    return "Updated " + parts.join(", ") + " ago";
+  }
+
+  function refresh() {
+    document.querySelectorAll("time.game-updated[datetime]").forEach(function (el) {
+      var from = new Date(el.dateTime);
+      var label = formatAgo(el.dateTime);
+      if (label) el.textContent = label;
+      if (!Number.isNaN(from.getTime())) el.title = from.toLocaleString();
+    });
+  }
+
+  refresh();
+  setInterval(refresh, 60000);
+})();
+</script>
+
 </body>
 </html>
